@@ -39,6 +39,7 @@ package weave.data.DataSources
 	import weave.compiler.StandardLib;
 	import weave.core.CallbackCollection;
 	import weave.core.LinkableFile;
+	import weave.core.LinkableNumber;
 	import weave.core.LinkableString;
 	import weave.core.LinkableVariable;
 	import weave.core.LinkableXML;
@@ -122,7 +123,26 @@ package weave.data.DataSources
 		
 		public const delimiter:LinkableString = registerLinkableChild(this, new LinkableString(',', verifyDelimiter), parseRawData);
 		private function verifyDelimiter(value:String):Boolean { return value && value.length == 1 && value != '"'; }
-		
+
+		/**
+		 * Specifies the number of rows to skip at the beginning of the CSV.
+		 */
+		public const rowsToSkip:LinkableNumber = registerLinkableChild(this, new LinkableNumber(0, verifyRowsToSkip), handleRowsToSkip);
+		private function verifyRowsToSkip(value:Number):Boolean
+		{
+			return value == uint(value);
+		}
+		private function handleRowsToSkip():void
+		{
+			if (linkableObjectIsBusy(csvParser))
+				return;
+
+			if (url.value)
+				handleCSVParser();
+			else
+				handleCSVDataChange();
+		}
+
 		private function parseRawData():void
 		{
 			if (!url.value)
@@ -195,7 +215,7 @@ package weave.data.DataSources
 				rows = [];
 			cachedDataTypes = {};
 			parsedRows = rows;
-			columnIds = rows[0] is Array ? (rows[0] as Array).concat() : [];
+			columnIds = parsedRows[rowsToSkip.value] is Array ? (parsedRows[rowsToSkip.value] as Array).concat() : [];
 			// make sure column names are unique - if not, use index values for columns with duplicate names
 			var nameLookup:Object = {};
 			for (var i:int = 0; i < columnIds.length; i++)
@@ -214,7 +234,7 @@ package weave.data.DataSources
 			var changed:Boolean = detectLinkableObjectChange(updateKeys, keyType, keyColName);
 			if (parsedRows && (forced || changed))
 			{
-				var colNames:Array = parsedRows[0] || [];
+				var colNames:Array = parsedRows[rowsToSkip.value] || [];
 				// getColumnValues supports columnIndex -1
 				var keyColIndex:int = -1;
 				if (keyColName.value)
@@ -261,8 +281,8 @@ package weave.data.DataSources
 		 */		
 		public function getColumnNames():Array
 		{
-			if (parsedRows && parsedRows.length)
-				return parsedRows[0].concat();
+			if (parsedRows && parsedRows.length > rowsToSkip.value)
+				return parsedRows[rowsToSkip.value].concat();
 			return [];
 		}
 
@@ -312,8 +332,8 @@ package weave.data.DataSources
 		{
 			var meta:Object = getColumnMetadata(id);
 			var title:String = meta ? meta[ColumnMetadata.TITLE] : null;
-			if (!title && typeof id == 'number' && parsedRows && parsedRows.length)
-				title = parsedRows[0][id];
+			if (!title && typeof id == 'number' && parsedRows && parsedRows.length > rowsToSkip.value)
+				title = parsedRows[rowsToSkip.value][id];
 			if (!title)
 				title = String(id);
 			return title;
@@ -540,7 +560,7 @@ package weave.data.DataSources
 			}
 			
 			// get column name and index from id
-			var colNames:Array = parsedRows[0] || [];
+			var colNames:Array = parsedRows[rowsToSkip.value] || [];
 			var colIndex:int, colName:String;
 			if (typeof columnId == 'number')
 			{
@@ -614,19 +634,21 @@ package weave.data.DataSources
 		 */
 		private function getColumnValues(rows:Array, columnIndex:int, outputArrayOrVector:*):*
 		{
-			outputArrayOrVector.length = Math.max(0, rows.length - 1);
+			var firstDataRow:int = rowsToSkip.value + 1;
+			var numDataRows:int = Math.max(0, rows.length - firstDataRow)
+			outputArrayOrVector.length = numDataRows;
 			var i:int;
 			if (columnIndex == -1)
 			{
 				// generate keys 0,1,2,3,...
-				for (i = 1; i < rows.length; i++)
-					outputArrayOrVector[i-1] = i;
+				for (i = 0; i < numDataRows; i++)
+					outputArrayOrVector[i] = i;
 			}
 			else
 			{
 				// get column value from each row
-				for (i = 1; i < rows.length; i++)
-					outputArrayOrVector[i-1] = rows[i][columnIndex];
+				for (i = 0; i < numDataRows; i++)
+					outputArrayOrVector[i] = rows[firstDataRow + i][columnIndex];
 			}
 			return outputArrayOrVector;
 		}
