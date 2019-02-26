@@ -1,6 +1,8 @@
 This repository is for Weave version 1.9.
 
-Demo [here](http://weaveteam.github.io/Weave-Binaries/weave.html)
+The latest desktop version can be found under [releases](https://github.com/adufilie/Weave/releases/).
+
+A live demo of the Flash version can be found [here](http://weaveteam.github.io/Weave-Binaries/weave.html).
 
 Weave supports integration from multiple data sources including: **CSV, GeoJSON, SHP/DBF, CKAN**  
   
